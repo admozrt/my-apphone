@@ -2,6 +2,7 @@
   "expo": {
     "name": "AppTMUFerry",
     "slug": "AppTMUFerry",
+    "scheme": "tmuferry",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,20 +18,34 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.boatbooking"
+      "bundleIdentifier": "ferry.timurmilautama.co.id"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.yourcompany.boatbooking",
+      "package": "ferry.timurmilautama.co.id",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "tmuferry"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -39,7 +54,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-location"
+      "expo-location",
+      "expo-web-browser"
     ]
   }
 }

@@ -5,20 +5,40 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
+import { showMessage } from 'react-native-flash-message';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export const LoginScreen = ({ navigation }: any) => {
-  const [email, setEmail] = useState('');
+  const [loginField, setLoginField] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
   const { state, signIn, clearError } = useAuth();
+
+  // Google Sign In setup
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: '987489638054-91v64gitgegmf93t2tiu7b1ld0075jpf.apps.googleusercontent.com',
+  });
+
+  // Handle Google Sign In response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleSignIn(id_token);
+    }
+  }, [response]);
 
   // Clear error when component unmounts or when user starts typing
   useEffect(() => {
@@ -26,291 +46,189 @@ export const LoginScreen = ({ navigation }: any) => {
   }, []);
 
   useEffect(() => {
-    if (email || password) {
+    if (loginField || password) {
       clearError();
     }
-  }, [email, password]);
+  }, [loginField, password]);
 
   const handleLogin = async () => {
-    if (!email.trim()) {
-      alert('Email tidak boleh kosong');
+    if (!loginField.trim()) {
+      showMessage({
+        message: 'Error',
+        description: 'Email atau username tidak boleh kosong',
+        type: 'danger',
+      });
       return;
     }
     
     if (!password.trim()) {
-      alert('Password tidak boleh kosong');
+      showMessage({
+        message: 'Error',
+        description: 'Password tidak boleh kosong',
+        type: 'danger',
+      });
       return;
     }
 
-    await signIn(email.trim(), password);
+    await signIn(loginField.trim(), password);
   };
 
-  const isValidEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const handleGoogleSignIn = async (idToken: string) => {
+    try {
+      // TODO: Implement Google sign in with backend
+      showMessage({
+        message: 'Info',
+        description: 'Google Sign In akan segera tersedia',
+        type: 'info',
+      });
+    } catch (error) {
+      showMessage({
+        message: 'Error',
+        description: 'Google Sign In gagal',
+        type: 'danger',
+      });
+    }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView className="flex-1 bg-white">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>🚢 Ferry Booking</Text>
-          <Text style={styles.subtitle}>Masuk untuk melanjutkan pemesanan</Text>
-        </View>
+        <ScrollView 
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          className="flex-1"
+        >
+          <View className="flex-1 px-6 justify-center">
+            {/* Logo & Header */}
+            <View className="items-center mb-10">
+              <View className="w-20 h-20 bg-blue-600 rounded-full items-center justify-center mb-4">
+                <Icon name="directions-boat" size={40} color="#fff" />
+              </View>
+              <Text className="text-3xl font-bold text-gray-800">TMU Ferry</Text>
+              <Text className="text-base text-gray-500 mt-2">Masuk untuk melanjutkan</Text>
+            </View>
 
-        {/* Error Message */}
-        {state.error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{state.error}</Text>
-          </View>
-        )}
+            {/* Form */}
+            <View className="space-y-4">
+              {/* Email/Username Input */}
+              <View>
+                <Text className="text-sm font-medium text-gray-700 mb-2">
+                  Email atau Username
+                </Text>
+                <View className="flex-row items-center bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+                  <Icon name="person" size={20} color="#6B7280" />
+                  <TextInput
+                    className="flex-1 ml-3 text-base text-gray-800"
+                    placeholder="Masukkan email atau username"
+                    placeholderTextColor="#9CA3AF"
+                    value={loginField}
+                    onChangeText={setLoginField}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    editable={!state.isLoading}
+                  />
+                </View>
+              </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[
-                styles.input,
-                email && !isValidEmail(email) && styles.inputError
-              ]}
-              placeholder="Masukkan email Anda"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              editable={!state.isLoading}
-            />
-            {email && !isValidEmail(email) && (
-              <Text style={styles.inputErrorText}>Format email tidak valid</Text>
-            )}
-          </View>
+              {/* Password Input */}
+              <View>
+                <Text className="text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </Text>
+                <View className="flex-row items-center bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
+                  <Icon name="lock" size={20} color="#6B7280" />
+                  <TextInput
+                    className="flex-1 ml-3 text-base text-gray-800"
+                    placeholder="Masukkan password"
+                    placeholderTextColor="#9CA3AF"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    editable={!state.isLoading}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    className="p-1"
+                  >
+                    <Icon 
+                      name={showPassword ? "visibility" : "visibility-off"} 
+                      size={20} 
+                      color="#6B7280" 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                placeholder="Masukkan password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
-                editable={!state.isLoading}
-              />
-              <TouchableOpacity
-                style={styles.passwordToggle}
-                onPress={() => setShowPassword(!showPassword)}
+              {/* Forgot Password */}
+              <TouchableOpacity 
+                className="self-end"
+                onPress={() => navigation.navigate('ForgotPassword')}
               >
-                <Text style={styles.passwordToggleText}>
-                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                <Text className="text-blue-600 text-sm font-medium">
+                  Lupa Password?
+                </Text>
+              </TouchableOpacity>
+
+              {/* Login Button */}
+              <TouchableOpacity
+                className={`bg-blue-600 rounded-xl py-4 items-center mt-6 ${
+                  (!loginField || !password || state.isLoading) ? 'opacity-50' : ''
+                }`}
+                onPress={handleLogin}
+                disabled={!loginField || !password || state.isLoading}
+              >
+                {state.isLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text className="text-white text-base font-semibold">
+                    Masuk
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Divider */}
+              <View className="flex-row items-center my-6">
+                <View className="flex-1 h-[1px] bg-gray-200" />
+                <Text className="mx-4 text-gray-500 text-sm">atau</Text>
+                <View className="flex-1 h-[1px] bg-gray-200" />
+              </View>
+
+              {/* Google Sign In Button */}
+              <TouchableOpacity
+                className="flex-row items-center justify-center bg-white border border-gray-300 rounded-xl py-4"
+                onPress={() => promptAsync()}
+                disabled={!request}
+              >
+                <Image 
+                  source={{ uri: 'https://www.google.com/favicon.ico' }}
+                  className="w-5 h-5 mr-3"
+                />
+                <Text className="text-gray-700 text-base font-medium">
+                  Masuk dengan Google
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Register Link */}
+            <View className="flex-row justify-center items-center mt-8">
+              <Text className="text-gray-600 text-base">
+                Belum punya akun?{' '}
+              </Text>
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('Register')}
+                disabled={state.isLoading}
+              >
+                <Text className="text-blue-600 text-base font-semibold">
+                  Daftar
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[
-              styles.loginButton,
-              (!email || !password || !isValidEmail(email) || state.isLoading) && styles.loginButtonDisabled
-            ]}
-            onPress={handleLogin}
-            disabled={!email || !password || !isValidEmail(email) || state.isLoading}
-          >
-            {state.isLoading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.loginButtonText}>Masuk</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Forgot Password */}
-          <TouchableOpacity 
-            style={styles.forgotPasswordButton}
-            onPress={() => navigation.navigate('ForgotPassword')}
-          >
-            <Text style={styles.forgotPasswordText}>Lupa Password?</Text>
-          </TouchableOpacity>
-
-          {/* Google Login - Placeholder */}
-          <TouchableOpacity 
-            style={[styles.googleButton, styles.googleButtonDisabled]}
-            disabled={true}
-          >
-            <Text style={styles.googleButtonText}>
-              🔍 Masuk dengan Google (Coming Soon)
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Belum punya akun? </Text>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Register')}
-            disabled={state.isLoading}
-          >
-            <Text style={styles.linkText}>Daftar</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1e293b',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  form: {
-    marginBottom: 32,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  inputError: {
-    borderColor: '#dc2626',
-  },
-  inputErrorText: {
-    color: '#dc2626',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 50,
-  },
-  passwordToggle: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-    bottom: 16,
-    justifyContent: 'center',
-  },
-  passwordToggleText: {
-    fontSize: 16,
-  },
-  loginButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  loginButtonDisabled: {
-    backgroundColor: '#9ca3af',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  loginButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  forgotPasswordButton: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  forgotPasswordText: {
-    color: '#2563eb',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  googleButton: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  googleButtonDisabled: {
-    backgroundColor: '#f9fafb',
-    borderColor: '#e5e7eb',
-  },
-  googleButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerText: {
-    color: '#64748b',
-    fontSize: 16,
-  },
-  linkText: {
-    color: '#2563eb',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

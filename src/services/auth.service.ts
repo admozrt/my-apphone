@@ -1,35 +1,52 @@
 // src/services/auth.service.ts
 import * as SecureStore from 'expo-secure-store';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface LoginCredentials {
-  email: string;
+  login_field: string; // email atau username
   password: string;
 }
 
 interface RegisterData {
-  name: string;
   email: string;
   password: string;
   password_confirmation: string;
+  tipe_pengguna?: string;
 }
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  avatar?: string;
+  tipe_pengguna: string;
+  roles?: string[];
+  permissions?: string[];
+  google_id?: string;
+  foto_profil?: string;
 }
 
 interface AuthResponse {
+  success: boolean;
   user: User;
   token: string;
-  expires_at: string;
+  message?: string;
 }
 
 class AuthService {
   private readonly API_BASE_URL = __DEV__ 
-    ? 'http://localhost:8000/api' // Laravel backend
+    ? 'http://192.168.114.244:8000/api' // Ganti dengan IP lokal Anda
     : 'https://your-production-api.com/api';
+
+  // Google OAuth config
+  private googleConfig = {
+    expoClientId: 'YOUR_EXPO_CLIENT_ID.apps.googleusercontent.com',
+    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+  };
 
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
@@ -45,7 +62,7 @@ class AuthService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || 'Login gagal');
       }
 
       // Store token securely
@@ -53,27 +70,41 @@ class AuthService {
       await SecureStore.setItemAsync('user', JSON.stringify(data.user));
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
+      if (error.message === 'Network request failed') {
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      }
       throw error;
     }
   }
 
   async register(userData: RegisterData): Promise<AuthResponse> {
     try {
+      const payload = {
+        ...userData,
+        tipe_pengguna: 'pelanggan',
+        username: userData.email, // username sama dengan email untuk pelanggan
+      };
+
       const response = await fetch(`${this.API_BASE_URL}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        if (data.errors) {
+          // Format Laravel validation errors
+          const errorMessages = Object.values(data.errors).flat().join('\n');
+          throw new Error(errorMessages);
+        }
+        throw new Error(data.message || 'Registrasi gagal');
       }
 
       // Store token securely
@@ -81,8 +112,51 @@ class AuthService {
       await SecureStore.setItemAsync('user', JSON.stringify(data.user));
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
+      if (error.message === 'Network request failed') {
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      }
+      throw error;
+    }
+  }
+
+  async loginWithGoogle(accessToken: string, userInfo: any): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/loginGoogle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          google_access_token: accessToken,
+          email: userInfo.email,
+          name: userInfo.name,
+          given_name: userInfo.given_name,
+          sub: userInfo.id,
+          picture: userInfo.picture,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Google login gagal');
+      }
+
+      // Store token securely
+      await SecureStore.setItemAsync('token', data.access_token || data.token);
+      await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+
+      return {
+        success: true,
+        user: data.user,
+        token: data.access_token || data.token,
+        message: data.message,
+      };
+    } catch (error: any) {
+      console.error('Google login error:', error);
       throw error;
     }
   }
@@ -118,8 +192,11 @@ class AuthService {
         return null;
       }
 
-      // Verify token with backend
-      const response = await fetch(`${this.API_BASE_URL}/user`, {
+      // Parse stored user data
+      const storedUser = JSON.parse(userString);
+
+      // Verify token with backend - get user by ID
+      const response = await fetch(`${this.API_BASE_URL}/pengguna/${storedUser.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
@@ -133,52 +210,34 @@ class AuthService {
       }
 
       const userData = await response.json();
-      return userData;
+      return userData.data;
     } catch (error) {
       console.error('Get current user error:', error);
       return null;
     }
   }
 
-  async refreshToken(): Promise<string | null> {
-    try {
-      const token = await SecureStore.getItemAsync('token');
-      
-      if (!token) return null;
-
-      const response = await fetch(`${this.API_BASE_URL}/refresh`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        await this.logout();
-        return null;
-      }
-
-      const data = await response.json();
-      await SecureStore.setItemAsync('token', data.token);
-      
-      return data.token;
-    } catch (error) {
-      console.error('Refresh token error:', error);
-      return null;
-    }
+  async getToken(): Promise<string | null> {
+    return await SecureStore.getItemAsync('token');
   }
 
-  // Simple Google Sign-in alternative (tanpa expo-auth-session)
-  async googleSignIn(): Promise<AuthResponse> {
-    try {
-      // Placeholder - bisa integrate dengan Google Sign-In library lain
-      // atau redirect ke webview
-      throw new Error('Google Sign-in will be implemented later');
-    } catch (error) {
-      console.error('Google Sign-in error:', error);
-      throw error;
+  // Helper method for API calls with auth
+  async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const token = await this.getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token');
     }
+
+    return fetch(`${this.API_BASE_URL}${url}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
   }
 }
 

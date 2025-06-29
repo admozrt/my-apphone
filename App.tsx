@@ -5,6 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FlashMessage from 'react-native-flash-message';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import './global.css'; // Import global styles
+
 import { AuthProvider } from './src/context/AuthContext';
 import { AppNavigator } from './src/navigation/AppNavigation';
 

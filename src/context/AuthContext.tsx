@@ -5,9 +5,13 @@ import { showMessage } from 'react-native-flash-message';
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  avatar?: string;
+  tipe_pengguna: string;
+  roles?: string[];
+  permissions?: string[];
+  google_id?: string;
+  foto_profil?: string;
 }
 
 interface AuthState {
@@ -26,8 +30,9 @@ type AuthAction =
 
 const AuthContext = createContext<{
   state: AuthState;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (loginField: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<void>;
+  signInWithGoogle: (accessToken: string, userInfo: any) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
 } | null>(null);
@@ -92,16 +97,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (loginField: string, password: string) => {
     try {
       dispatch({ type: 'LOADING', payload: true });
-      const response = await authService.login({ email, password });
+      const response = await authService.login({ 
+        login_field: loginField, 
+        password 
+      });
       
       dispatch({ type: 'SIGN_IN_SUCCESS', payload: response.user });
       
       showMessage({
         message: 'Login Berhasil',
-        description: `Selamat datang, ${response.user.name}!`,
+        description: `Selamat datang, ${response.user.username}!`,
         type: 'success',
       });
     } catch (error: any) {
@@ -120,7 +128,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       dispatch({ type: 'LOADING', payload: true });
       const response = await authService.register({
-        name,
         email,
         password,
         password_confirmation: passwordConfirmation,
@@ -130,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       showMessage({
         message: 'Registrasi Berhasil',
-        description: `Selamat datang, ${response.user.name}!`,
+        description: `Selamat datang di TMU Ferry!`,
         type: 'success',
       });
     } catch (error: any) {
@@ -139,6 +146,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       showMessage({
         message: 'Registrasi Gagal',
+        description: errorMessage,
+        type: 'danger',
+      });
+    }
+  };
+
+  const signInWithGoogle = async (accessToken: string, userInfo: any) => {
+    try {
+      dispatch({ type: 'LOADING', payload: true });
+      const response = await authService.loginWithGoogle(accessToken, userInfo);
+      
+      dispatch({ type: 'SIGN_IN_SUCCESS', payload: response.user });
+      
+      showMessage({
+        message: 'Login Berhasil',
+        description: `Selamat datang, ${response.user.username}!`,
+        type: 'success',
+      });
+    } catch (error: any) {
+      const errorMessage = error.message || 'Google login gagal';
+      dispatch({ type: 'ERROR', payload: errorMessage });
+      
+      showMessage({
+        message: 'Login Gagal',
         description: errorMessage,
         type: 'danger',
       });
@@ -168,7 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ state, signIn, signUp, signOut, clearError }}>
+    <AuthContext.Provider value={{ state, signIn, signUp, signInWithGoogle, signOut, clearError }}>
       {children}
     </AuthContext.Provider>
   );
